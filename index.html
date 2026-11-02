@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   ============================================================
-  红蓝对决 · 版本 v13_sticky_clock
+  红蓝对决 · 版本 v12_indices_etfs
   ============================================================
   上一版文件：bbi-monitor-v11_bind_guard.html
 
@@ -15,7 +15,7 @@
   2. 监控名单改为文件内写死：FIXED_SLOTS（共 12 只）
      002003 伟星股份 / 002928 华夏航空 / 601628 中国人寿 /
      000425 徐工机械 / 000526 学大教育 / 603979 金诚信 /
-     600377 宁沪高速 / 600901 江苏金租 / 159175 / 159181 / 159038 / 159020
+     600377 宁沪高速 / 600901 江苏金租 / 159175 / 159181 / 159038 / 159020 / 159339
      - 每次加载都强制使用这份名单，忽略浏览器里存的旧列表
      - 换设备、清缓存、换浏览器，名单都一致
      - 想改名单独改 FIXED_SLOTS 后重新上传
@@ -29,7 +29,25 @@
 
   6. 大盘环境新增创业板、沪深300卡片，位于上证指数下方
   7. 监控名单末尾追加 159175、159181、159038、159020
-  8. 顶部时间卡片设为 sticky，页面滚动时固定在视口顶部
+
+  【后续追加 v13】
+
+  8. 时钟卡片背景按「涨跌家数比」染色
+     - 比例 = 上涨家数 ÷ 下跌家数
+     - 比例 = 1.00 → 保持原色不变
+     - 比例 > 1    → 红色，1 → 10 逐渐加深、加亮、加外发光
+     - 比例 < 1    → 绿色，1 → 0.05 逐渐加深
+     - 卡片内新增一行小字：涨跌比 0.42 · 1832/4390
+     - 切换深浅主题时会按新主题重新计算透明度
+     - 数据未取到时自动清除染色
+
+  【后续追加 v14】
+
+  9. 时钟卡片改为吸顶固定（position: sticky）
+     - 向下滚动时始终停在顶部，带安全区偏移，不被刘海遮挡
+     - 卡片底色改为不透明 background-color，染色只覆盖 background-image，
+       避免吸顶后下方内容透过半透明色块显形
+ 10. 自选监控第一位改为 A500ETF 银华（159339）
   ============================================================
 -->
 <html lang="zh-CN">
@@ -37,7 +55,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <meta name="theme-color" content="#0b0f14" id="themeColor"/>
-<title>红蓝对决 · v13_sticky_clock</title>
+<title>红蓝对决 · v12_indices_etfs</title>
 <style>
 :root{
   --bg:#0b0f14; --card:#141a22; --card2:#1b232d; --line:#26303c;
@@ -74,14 +92,31 @@ body{
 h1,h2,h3{margin:0;font-weight:600}
 .mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
 
-/* ---------- 顶部时钟 ---------- */
+/* ---------- 顶部时钟（滚动时吸顶固定） ---------- */
 .clockbox{
-  position:sticky;top:calc(env(safe-area-inset-top, 0px) + 8px);z-index:100;
-  background:linear-gradient(160deg,var(--card2),var(--card));
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 60;
+  /* 底色必须不透明，吸顶后下面的内容才不会透出来 */
+  background-color: var(--card);
+  background-image: linear-gradient(160deg, var(--card2), var(--card));
   border:1px solid var(--line); border-radius:16px; padding:14px 16px;
   display:flex; align-items:center; justify-content:space-between; gap:10px;
+  transition:background-image .6s, border-color .6s, box-shadow .6s;
+  box-shadow:0 8px 18px -14px rgba(0,0,0,.75);
 }
-html.light .clockbox{background:linear-gradient(160deg,#ffffff,#f7f9fc)}
+/* 涨跌比染色：ratio=1 不染；>1 红、<1 绿，越极端越深越亮
+   只覆盖 background-image，底色仍保持不透明 */
+.clockbox.tint{ }
+.clockbox .tintTag{
+  font-size:10.5px; padding:2px 7px; border-radius:999px; margin-top:4px;
+  display:inline-block; font-variant-numeric:tabular-nums;
+  background:rgba(255,255,255,.06); color:var(--dim); border:1px solid var(--line);
+}
+html.light .clockbox{
+  background-color: #ffffff;
+  background-image: linear-gradient(160deg,#ffffff,#f7f9fc);
+}
 .clock-time{font-size:32px;font-weight:700;letter-spacing:1px;line-height:1.1}
 .clock-date{color:var(--dim);font-size:13px;margin-top:2px}
 .cright{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
@@ -342,6 +377,7 @@ html.light .btn.danger{color:#c9184a}
   <div>
     <div class="clock-time mono" id="clock">--:--:--</div>
     <div class="clock-date" id="date">加载中</div>
+    <span class="tintTag" id="tintTag" style="display:none">—</span>
   </div>
   <div class="cright">
     <button class="themeSwitch" id="btnTheme" aria-label="切换深浅主题" title="切换主题">
@@ -510,6 +546,7 @@ const SEED_SLOTS = [
 
 /* 固定监控名单：写死在文件里，页面不再提供增删 */
 const FIXED_SLOTS = [
+  { code: "159339", name: "" },          /* A500ETF 银华 —— 放第一位 */
   { code: "002003", name: "伟星股份" },
   { code: "002928", name: "华夏航空" },
   { code: "601628", name: "中国人寿" },
@@ -521,7 +558,7 @@ const FIXED_SLOTS = [
   { code: "159175", name: "" },
   { code: "159181", name: "" },
   { code: "159038", name: "" },
-  { code: "159020", name: "" }
+  { code: "159020", name: "" },
 ];
 
 /* 大盘环境附加指数：紧跟上证指数卡片显示 */
@@ -1210,6 +1247,10 @@ function toggleTheme(){
   state.theme = state.theme === "light" ? "dark" : "light";
   saveState();
   applyTheme();
+  // 主题变了，染色要按新的深浅重新算一遍
+  if(lastMarket){
+    try{ applyClockTint(lastMarket.up, lastMarket.down); }catch(e){}
+  }
 }
 
 /* ---------- 日线 / 周线 ---------- */
@@ -1414,14 +1455,91 @@ function condCells(res){
   }).join("");
 }
 
+/* =========================================================
+   7b. 时钟卡按涨跌家数比例染色
+   ---------------------------------------------------------
+   比例 = 上涨家数 ÷ 下跌家数
+   = 1        → 不变色
+   > 1        → 红色，1 → 10 逐渐加深加亮
+   < 1        → 绿色，1 → 0.05 逐渐加深
+   ========================================================= */
+function clearClockTint(){
+  const el = document.querySelector(".clockbox");
+  const tag = $("tintTag");
+  if(el){
+    el.classList.remove("tint");
+    el.style.backgroundImage = "";
+    el.style.borderColor = "";
+    el.style.boxShadow = "";
+  }
+  if(tag){ tag.style.display = "none"; tag.textContent = "—"; }
+}
+
+function applyClockTint(up, down){
+  const el = document.querySelector(".clockbox");
+  if(!el) return;
+
+  if(!isFinite(up) || !isFinite(down) || down <= 0 || (up + down) <= 0){
+    clearClockTint();
+    return;
+  }
+
+  const ratio = up / down;
+  const light = document.documentElement.classList.contains("light");
+
+  let t = 0;          // 0~1 强度
+  let rgb = null;
+  if(Math.abs(ratio - 1) < 0.005){
+    t = 0;            // 正好 1:1，不变色
+  }else if(ratio > 1){
+    t = Math.min(1, (Math.min(ratio, 10) - 1) / 9);
+    rgb = light ? "225,29,72" : "255,77,79";
+  }else{
+    t = Math.min(1, (1 - Math.max(ratio, 0.05)) / 0.95);
+    rgb = light ? "18,161,80" : "34,197,94";
+  }
+
+  const tag = $("tintTag");
+  if(tag){
+    tag.style.display = "inline-block";
+    tag.textContent = "涨跌比 " + ratio.toFixed(2) + " · " + up + "/" + down;
+  }
+
+  if(!rgb || t <= 0){
+    el.classList.remove("tint");
+    el.style.backgroundImage = "";
+    el.style.borderColor = "";
+    el.style.boxShadow = "";
+    return;
+  }
+
+  // 浅色主题下降低不透明度，避免刺眼
+  const k = light ? 0.62 : 1;
+  const a1 = (0.06 + 0.50 * t) * k;   // 渐变起点
+  const a2 = (0.02 + 0.24 * t) * k;   // 渐变终点
+  const ab = (0.22 + 0.58 * t) * k;   // 边框
+
+  el.classList.add("tint");
+  // 只改 background-image：底色保持不透明，吸顶后不会透出下方内容
+  el.style.backgroundImage =
+    "linear-gradient(160deg, rgba(" + rgb + "," + a1.toFixed(3) + "), rgba(" + rgb + "," + a2.toFixed(3) + "))";
+  el.style.borderColor = "rgba(" + rgb + "," + ab.toFixed(3) + ")";
+  el.style.boxShadow = t > 0.12
+    ? "0 0 " + (10 + 20 * t).toFixed(0) + "px rgba(" + rgb + "," + (0.10 + 0.22 * t).toFixed(3) + "), 0 8px 18px -14px rgba(0,0,0,.75)"
+    : "0 8px 18px -14px rgba(0,0,0,.75)";
+}
+
 function renderMarket(market, amt, dist){
   const box = $("marketBox");
   if(!market){
     box.innerHTML = '<div class="top"><span class="ttl">全市场</span>' +
       '<div><div class="amt">—</div><div class="amtSub">数据不可用</div></div></div>';
+    clearClockTint();
     return;
   }
   const { up, down, flat, total } = market;
+  lastMarket = market;
+  try{ applyClockTint(up, down); }catch(e){}
   const pctOf = n => total ? (n / total * 100) : 0;
   const wu = pctOf(up), wf = pctOf(flat), wd = pctOf(down);
 
@@ -1631,6 +1749,7 @@ function setStatus(ok, text, upd){
 let running = false;
 let lastRefreshAt = 0;
 let lastResults = null;   // 缓存最近一次结果，供排序切换时即时重排
+let lastMarket = null;    // 最近一次全市场数据，供切换主题时重新染色
 
 async function refreshAll(){
   if(running) return;
