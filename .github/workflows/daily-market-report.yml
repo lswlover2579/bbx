@@ -1,0 +1,42 @@
+name: Daily A-share market monitor
+
+on:
+  schedule:
+    - cron: '30 15 * * 1-5'
+      timezone: 'Asia/Shanghai'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '仅检查、不推送（建议先试跑）'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-a-share-market-report
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate and deliver market report
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          FEISHU_SIGN_SECRET: ${{ secrets.FEISHU_SIGN_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/daily-market-report.mjs
